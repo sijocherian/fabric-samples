@@ -1,14 +1,27 @@
-# Private data transfer scenario
+# Private data asset transfer scenario
 
-The private data transfer smart contract demonstrates a simple asset transfer that uses private data collections. All data is stored in private data collections and cannot be read by all members of the channel. The chaincode uses the `collections_config.json` file to deploy three private data collections:
+The private data asset transfer smart contract uses a simple asset transfer to demonstrate the use of private data collections. All the data that is created by the smart contract is stored in the private data collections specified in the `collections_config.json` file:
 
-- The `assetCollection` is stored on the peers of Org1 and Org2 and is used to store the properties of an asset that can be accessed by both Org1 and Org2. This collection is used to store the main details of the asset, such as the size, color, and the owner.
-- `Org1MSPDetailsCollection` is stored only on the peers of Org1, while the `Org2MSPDetailsCollection` is only stored on the peers of Org2. These collections are used to store the appraised value of the asset. These collections are used to store the appraisal value of the asset.
-- The asset is owned by the client application that creates the asset. The chaincode uses the `GetID()` function to fetch the information of the ID that submitted the request, and assigns that client application as the owner of the asset. The appraised value is stored in the Details collection of the organization that owns the asset. For example, if a user from Org1 uses the smart contract to create the asset, the appraisal value is stored in the `Org1MSPDetailsCollection`.
-- If the other organization wants to purchase the asset, the can use the smart contract to create a transfer agreement. The buyer needs to agree to a value for the asset. The smart contract will store this value in the collection of the organization that agrees to buy the asset. The transfer agreement will also store the client ID of the buyer in the `assetCollection`.
-- After another user has agreed to buy the asset, the owner can transfer the asset. The transfer function will check that user transferring the asset is the asset owner. The user will also use the `GetPrivateDataHash()` function to check that the purchaser of the asset has agreed to the same appraisal value as the owner. If the buyer has agreed to the same price, the transfer function will get the client ID of the buyer from the transfer agreement, and updates the owner of the asset in the `assetCollection`.
+- The `assetCollection` is a collection that is deployed on the peers of Org1 and Org2. This collection is used to store the main asset details, such as the size, color, and owner. The `"memberOnlyRead"` and `"memberOnlyWrite"` parameters are used to specify that only Org1 and Org2 can read and write to this collection.
+- The `Org1MSPPrivateCollection` collection is deployed only on the Org1 peer. Similarly, the `Org2MSPPrivateCollection` is only deployed on the Org2 peer. These organization specific collections are used to store the appraisal value of the asset. This allows the owner of the asset to keep the value of the asset private from other organizations on the channel. The `"endorsementPolicy"` parameter is used to create a collection specific endorsement policy. Each update to an organization specific collection needs to be endorsed by the organization that stores the collection on their peers.
 
-This smart contract is meant to introduce users to how to use private data collections. For an example of a more realistic asset transfer scenario, see the [secure asset transfer smart contract](link).
+These two collections are used to transfer the asset between Org1 and Org2. In the tutorial, you will use the private data smart contract to complete the following transfer scenario:
+
+- A member of Org1 uses the `CreateAsset` function to create a new asset. The `CreateAsset` function uses the `GetID()` API to read the certificate information of the client identity that submitted the transaction and creates the asset with the client identity as the asset owner. The main details of the asset, including the owner, are stored in the `assetCollection` collection. The appraised value of the asset is stored in the organization specific collection of the asset owner. Because the asset is initially created by a member of Org1, the appraisal value is stored in the `Org1MSPPrivateCollection` collection.
+- A member of Org2 uses the `AgreeToTransfer` function to agree to trade the asset for a specified value. The value is stored in the `Org1MSPPrivateCollection` collection, and can only read by a member of Org2. The `AgreeToTransfer` function also uses the `GetID()` API to read the identity that is agreeing to the transfer, and stores the identity as the value of a transfer agreement key stored in the `assetCollection`.
+- After the member of Org2 has agreed to purchase the asset, the asset owner can transfer the asset to the buyer using the `TransferAsset` function. The smart contract completes a couple of checks before the asset is transferred:
+    - The transfer request is submitted by the owner of the asset.
+    - The smart contract uses the `GetPrivateDataHash()` function to check that the hash of the asset appraisal value in `Org1MSPPrivateCollection` collection matches the hash of the value in the `Org1MSPPrivateCollection` collection. If the hashes are the same, it confirms that the owner and the interested buyer have agreed to the same asset value.
+  If both conditions are met, the transfer function will get the client ID of the buyer from the transfer agreement and make the buyer the new owner of the asset. The transfer function will also delete the asset appraisal value from the collection of the former owner, as well as remove the transfer agreement from the  `assetCollection`.
+
+The private data asset transfer is a simplified transfer scenario that is meant to demonstrate the use private data collections. For an example of a more realistic transfer scenario, see the [secure asset transfer smart contract](../../asset-transfer-secured-agreement/chaincode-go).
+
+## Download the smart contract dependencies
+
+Before you install the smart contract on the network, you should download the smart contract dependencies. Run the following command from the `fabric-samples/asset-transfer-private-data/chaincode-go` directory.
+```
+GO111MODULE=on go mod vendor
+```
 
 ## Deploy the smart contract to the test network
 
@@ -17,7 +30,7 @@ You can use the Fabric test network to run the private data transfer scenario. O
 cd fabric-samples/test-network
 ```
 
-The test network contains two peer organizations. We will deploy the test network using certificate authorities, so we can use a CA for each organization. The script will also a single channel named `mychannel` with Org1 and Org2 as channel members.
+The test network is deployed with two peer organizations. We will deploy the test network using certificate authorities so that we can use the CA for each orgnization to register and enroll new users for the tutorial. The script will also a single channel named `mychannel` with Org1 and Org2 as channel members.
 
 ```
 ./network.sh up createChannel -ca
@@ -45,7 +58,7 @@ Run the following command to package the private asset transfer chaincode:
 peer lifecycle chaincode package private_transfer.tar.gz --path ../asset-transfer-private-data/chaincode-go --lang golang --label private_transfer_1
 ```
 
-The command creates a chaincode package named `private_transfer.tar.gz`. We can now install this package on the Org1 peer:
+The command will create a chaincode package named `private_transfer.tar.gz`. We can now install this package on the Org1 peer:
 ```
 peer lifecycle chaincode install private_transfer.tar.gz
 ```
@@ -56,14 +69,14 @@ peer lifecycle chaincode queryinstalled
 ```
 Save the package ID as an environment variable. The package ID will not be the same for all users, so need to use the result that was returned by the previous command:
 ```
-export PACKAGE_ID=private_transfer_1:5bfc5d3a7ca7110d7f69473eadf09f8f8dde0a24d1d3fceb4f7c05bf355bb990
+export PACKAGE_ID=private_transfer_1:74aaf8ab367c8a07a5be8990696d22e949f5b7a42b2d054006dc57e028c27f60
 ```
 You can now approve the chaincode as Org1. This command includes a path to the collection definition file.
 ```
 peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name private_transfer --version 1 --package-id $PACKAGE_ID --sequence 1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --collections-config ../asset-transfer-private-data/chaincode-go/collections_config.json --signature-policy "OR('Org1MSP.peer','Org2MSP.peer')"
 ```
 
-Note we are approving a chaincode endorsement policy of `"OR('Org1MSP.peer','Org2MSP.peer')"`. This allows either organization to create a asset without receiving an endorsement from the other organization.
+Note we are approving a chaincode endorsement policy of `"OR('Org1MSP.peer','Org2MSP.peer')"`. This allows Org1 and Org2 to create an asset without receiving an endorsement from the other organization.
 
 
 ### Install and approve the chaincode as Org2
@@ -89,7 +102,7 @@ peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameO
 
 ### Commit the chaincode definition the channel
 
-Now that a majority (2 out of 2) of channel members have approved the chaincode definition, Org2 can commit the chaincode definition to deploy the chaincode to the channel:
+Now that a majority (2 out of 2) of channel members have approved the chaincode definition, Org2 can commit the chaincode definition and deploy the chaincode to the channel:
 ```
 peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name private_transfer --version 1 --sequence 1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --collections-config ../asset-transfer-private-data/chaincode-go/collections_config.json --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt --signature-policy "OR('Org1MSP.peer','Org2MSP.peer')"
 ```
@@ -97,9 +110,9 @@ We are now ready use the private asset transfer smart contract.
 
 ## Register identities
 
-The private data transfer smart contract supports ownership by individual identities. In our scenario, the owner of the asset will belong to Org1, while the buyer will belong to Org2. To highlight this, we will register two new identities with both organizations.
+The private data transfer smart contract supports ownership by individual identities that belong to the network, instead of an entire organization. In our scenario, the owner of the asset will be a member of Org1, while the buyer will belong to Org2. To highlight the connection between the `GetID()` API and the information within a users certificate, we will use the Certificate Authorities of both organizations to register new two new identities.
 
-First, we will use the Org1 CA to create the owner identity. Set the Fabric CA client home the Org1 CA admin (this identity was generated by the script):
+First, we will use the Org1 CA to create the identity asset owner. Set the Fabric CA client home to the MSP of the Org1 CA admin (this identity was generated by the test network script):
 ```
 export FABRIC_CA_CLIENT_HOME=${PWD}/organizations/peerOrganizations/org1.example.com/
 ```
@@ -109,7 +122,7 @@ You can register a new owner client identity using the `fabric-ca-client` tool:
 fabric-ca-client register --caname ca-org1 --id.name owner --id.secret ownerpw --id.type client --tls.certfiles ${PWD}/organizations/fabric-ca/org1/tls-cert.pem
 ```
 
-We can now enroll using the enroll name and secret to generate the identity crypto material.
+You can now generate the identity certificates and MSP folder by providing the enroll name and secret to the enroll command:
 ```
 fabric-ca-client enroll -u https://owner:ownerpw@localhost:7054 --caname ca-org1 -M ${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp --tls.certfiles ${PWD}/organizations/fabric-ca/org1/tls-cert.pem
 ```
@@ -129,7 +142,7 @@ You can register a new owner client identity using the `fabric-ca-client` tool:
 fabric-ca-client register --caname ca-org2 --id.name buyer --id.secret buyerpw --id.type client --tls.certfiles ${PWD}/organizations/fabric-ca/org2/tls-cert.pem
 ```
 
-We can now enroll using the enroll name and secret to generate the identity crypto material.
+We can now enroll to generate the identity MSP folder:
 ```
 fabric-ca-client enroll -u https://buyer:buyerpw@localhost:8054 --caname ca-org2 -M ${PWD}/organizations/peerOrganizations/org2.example.com/users/buyer@org2.example.com/msp --tls.certfiles ${PWD}/organizations/fabric-ca/org2/tls-cert.pem
 ```
@@ -141,7 +154,7 @@ cp ${PWD}/organizations/peerOrganizations/org2.example.com/msp/config.yaml ${PWD
 
 ## Create an asset
 
-We can now use the smart contract to create an asset that is owned by the owner identity from Org1. Use the following environment variables to operate the `peer` CLI as the owner identity from Org1.
+Now that we have created the identity of the asset owner, we can invoke the smart contract to create a new asset. Use the following environment variables to operate the `peer` CLI as the owner identity from Org1.
 
 ```
 export CORE_PEER_LOCALMSPID="Org1MSP"
@@ -150,27 +163,31 @@ export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.e
 export CORE_PEER_ADDRESS=localhost:7051
 ```
 
-Run the following command to define the asset properties:3
+Run the following command to define the asset properties:
 ```
-export asset_PROPERTIES=$(echo -n "{\"object_type\":\"asset\",\"asset_id\":\"asset1\",\"color\":\"green\",\"size\":20,\"appraisedValue\":100}" | base64 | tr -d \\n)
-```
-
-We can now invoke the chaincode to create an asset that belongs to the owner identity:
-```
-peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$asset_PROPERTIES\"}"
+export ASSET_PROPERTIES=$(echo -n "{\"type\":\"asset\",\"asset_id\":\"asset1\",\"color\":\"green\",\"size\":20,\"appraised_value\":100}" | base64 | tr -d \\n)
 ```
 
-We can can read the asset properties by querying the `assetCollection` private data collection:
+We can the invoke the smart contract to create the new asset:
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+
+The command above uses the transient data flag, `--transient`, to provide the marble details to the transaction. Transient data is is only stored in a transient data store in the peers targeted by the transaction. Transient data is not part of the transaction read write set, and as result is not stored on the channel ledger.
+
+Note that command above only targets the Org1 peer. The `CreateAsset` transactions writes to two collections, `assetCollection` and `Org1MSPPrivateCollection`. The `Org1MSPPrivateCollection` requires and endorsement from the Org1 peer in order to write to the collection, while the `assetCollection` inherits the endorsement policy of the smart contract, `"OR('Org1MSP.peer','Org2MSP.peer')"`. An endorsement from the Org1 peer can meet both endorsement policies and is able to create an asset without an endorsement from Org2.
+
+We can read the main details of the asset that was created by using the `ReadAsset` function to query the `assetCollection` collection:
 ```
 peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAsset","Args":["asset1"]}'
 ```
 
 When successful, the command will return the following result:
 ```
-"{\"object_type\":\"asset\",\"asset_id\":\"asset1\",\"color\":\"green\",\"size\":20,\"owner\":\"eDUwOTo6Q049b3duZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMS5leGFtcGxlLmNvbSxPPW9yZzEuZXhhbXBsZS5jb20sTD1EdXJoYW0sU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUw==\"}"
+"{\"type\":\"asset\",\"asset_id\":\"asset1\",\"color\":\"green\",\"size\":20,\"owner\":\"eDUwOTo6Q049b3duZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMS5leGFtcGxlLmNvbSxPPW9yZzEuZXhhbXBsZS5jb20sTD1EdXJoYW0sU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUw==\"}"
 ```
 
-The `"owner"` of the asset is the identity that invoked the chaincode to create the asset, as identified by the common name and issuer of the identities certificate, which is then base64 encoded. You can see that information by base64 decoding the owner string:
+The `"owner"` of the asset is the identity that invoked the chaincode to create the asset. The `GetID()` API reads the common name and issuer of the identity certificate. You can see that information by base64 decoding the owner string:
 ```
 echo eDUwOTo6Q049b3duZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMS5leGFtcGxlLmNvbSxPPW9yZzEuZXhhbXBsZS5jb20sTD1EdXJoYW0sU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUw | base64 --decode
 ```
@@ -180,18 +197,18 @@ The result will show the common name and issuer of the owner certificate:
 x509::CN=owner,OU=client,O=Hyperledger,ST=North Carolina,C=US::CN=ca.org1.example.com,O=org1.example.com,L=Durham,ST=North Carolina,C=Umacbook-air:test-network
 ```
 
-The owner can also read the marble details that are stored in the `Org1MSPDetailsCollection` stored on the Org1 peer:
+A member of Org1 can also read the private marble appraisal value that is stored in the `Org1MSPPrivateCollection` collection on the Org1 peer:
 ```
-peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPDetailsCollection","asset1"]}'
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
 ```
-The query will return the price of the asset:
+The query will return the value of the asset:
 ```
-"{\"ID\":\"asset1\",\"appraisedValue\":100}"
+"{\"ID\":\"asset1\",\"appraised_value\":100}"
 ```
 
 ### Buyer from Org2 agrees to buy the asset
 
-The buyer that belongs to Org2 is interested in buying the asset. Set the following environment variables to operate as the buyer of the asset:
+The buyer identity from Org2 is interested in buying the asset. Set the following environment variables to operate as the buyer of the asset:
 
 ```
 export CORE_PEER_LOCALMSPID="Org2MSP"
@@ -200,9 +217,9 @@ export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.e
 export CORE_PEER_ADDRESS=localhost:9051
 ```
 
-Now that we are operating as a member of Org2, we should not that the asset details are not currently stored in Org2 private data collection:
+Now that we are operating as a member of Org2, we can demonstrate that the asset appraisal is not stored on the Org2 peer:
 ```
-peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPDetailsCollection","asset1"]}'
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPPrivateCollection","asset1"]}'
 ```
 The buyer only finds that asset1 does exist in his collection:
 ```
@@ -211,41 +228,31 @@ Error: endorsement failure during invoke. response: status:500 message:"asset1 d
 
 Nor is a member of Org2 able to read the Org1 private data collection:
 ```
-peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPDetailsCollection","asset1"]}'
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
 ```
-By setting `"memberOnlyRead": true` in the collection configuration file, only a member of Org1 can read the collection. A member from Org2 only gets the following response.
+By setting `"memberOnlyRead": true` in the collection configuration file, we specify that only members of of Org1 can read data from the collection. A member who tries to read the collection would only get the following response.
 ```
-Error: endorsement failure during query. response: status:500 message:"failed to read from asset details GET_STATE failed: transaction ID: f695f08e71667d7124d7779d2312b21b67320b37f528d453bbd117ffd87ec86b: tx creator does not have read access permission on privatedata in chaincodeName:private_transfer collectionName: Org1MSPDetailsCollection"
-```
-
-To purchase the asset, the buyer needs to agree to the price set by the owner. The buyer can then store that price in the `Org2MSPDetailsCollection` private details collection. Run the following command to agree to the appraised value of 100:
-```
-export asset_PRICE=$(echo -n "{\"asset_id\":\"asset1\",\"appraisedValue\":100}" | base64 | tr -d \\n)
-peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"AgreeToPrice","Args":["asset1"]}' --transient "{\"asset_price\":\"$asset_PRICE\"}"
+Error: endorsement failure during query. response: status:500 message:"failed to read from asset details GET_STATE failed: transaction ID: 10d39a7d0b340455a19ca4198146702d68d884d41a0e60936f1599c1ddb9c99d: tx creator does not have read access permission on privatedata in chaincodeName:private_transfer collectionName: Org1MSPPrivateCollection"
 ```
 
-The buyer can now query the price that they agreed in the Org2 private data collection:
+To purchase the asset, the buyer needs to agree to the same value as the asset owner. The agreed value will be stored in the `Org2MSPDetailsCollection` collection on the Org2 peer. Run the following command to agree to the appraised value of 100:
 ```
-peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPDetailsCollection","asset1"]}'
+export ASSET_VALUE=$(echo -n "{\"asset_id\":\"asset1\",\"appraised_value\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"AgreeToTransfer","Args":[]}' --transient "{\"asset_value\":\"$ASSET_VALUE\"}"
+```
+
+The buyer can now query the value they agreed to in the Org2 private data collection:
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPPrivateCollection","asset1"]}'
 ```
 The invoke will return the following value:
 ```
-{"asset_id":"asset1","appraisedValue":100}
-```
-
-To purchase the asset, the buyer needs to pass their identity out of band. The buyer can use the return ID function for that purpose:
-```
-peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReturnID","Args":[]}'
-```
-
-The query returns the following string:
-```
-eDUwOTo6Q049YnV5ZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMi5leGFtcGxlLmNvbSxPPW9yZzIuZXhhbXBsZS5jb20sTD1IdXJzbGV5LFNUPUhhbXBzaGlyZSxDPVVL
+{"asset_id":"asset1","appraised_value":100}
 ```
 
 ## Transfer the asset to Org2
 
-Now that buyer has agreed to buy the asset for appraised value, Org1 can transfer the asset to Org2. Set the following environment variables to operate as Org1:
+Now that buyer has agreed to buy the asset for appraised value, the owner from Org1 can transfer the asset to Org2. Set the following environment variables to operate as Org1:
 ```
 export CORE_PEER_LOCALMSPID="Org1MSP"
 export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp
@@ -254,15 +261,15 @@ export CORE_PEER_ADDRESS=localhost:7051
 ```
 
 
-To transfer the asset, the owner needs to pass the MPS ID and identity of the new owner to the transfer function using transient data.
+To transfer the asset, the owner needs to pass the MSP ID of new asset owner. The transfer function will read the client ID of the new owner from the transfer agreement.
 ```
-export asset_Owner=$(echo -n "{\"asset_id\":\"asset1\",\"buyer_id\":\"eDUwOTo6Q049YnV5ZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMi5leGFtcGxlLmNvbSxPPW9yZzIuZXhhbXBsZS5jb20sTD1IdXJzbGV5LFNUPUhhbXBzaGlyZSxDPVVL\",\"buyer_msp\":\"Org2MSP\"}" | base64 | tr -d \\n)
+export ASSET_OWNER=$(echo -n "{\"asset_id\":\"asset1\",\"buyer_msp\":\"Org2MSP\"}" | base64 | tr -d \\n)
 ```
 
-Operate from the Org1 terminal. The owner of the asset needs to initiate the transfer. Note that the command below uses the `--peerAddresses` flag to target the peers of both Org1 and Org2. Both organizations need to endorse the transfer.
+The owner of the asset needs to initiate the transfer. Note that the command below uses the `--peerAddresses` flag to target the peers of both Org1 and Org2. Both organizations need to endorse the transfer.
 
 ```
-peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"TransferAsset","Args":[]}' --transient "{\"asset_owner\":\"$asset_Owner\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"TransferAsset","Args":[]}' --transient "{\"asset_owner\":\"$ASSET_OWNER\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
 ```
 You can query `asset1` to see the results of the transfer.
 ```
@@ -272,14 +279,14 @@ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.exam
 The results will show that the buyer identity now owns the asset:
 
 ```
-{"object_type":"asset","asset_id":"asset1","color":"green","size":20,"owner":"eDUwOTo6Q049YnV5ZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMi5leGFtcGxlLmNvbSxPPW9yZzIuZXhhbXBsZS5jb20sTD1IdXJzbGV5LFNUPUhhbXBzaGlyZSxDPVVL"}
+{"type":"asset","asset_id":"asset1","color":"green","size":20,"owner":"eDUwOTo6Q049YnV5ZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMi5leGFtcGxlLmNvbSxPPW9yZzIuZXhhbXBsZS5jb20sTD1IdXJzbGV5LFNUPUhhbXBzaGlyZSxDPVVL"}
 ```
 
-You can also confrirm that transfer removed the private details from the Org1 collection:
+You can also confirm that transfer removed the private details from the Org1 collection:
 ```
-peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPDetailsCollection","asset1"]}'
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
 ```
-You query will return the following result:
+Your query will return the following result:
 ```
 Error: endorsement failure during query. response: status:500 message:"asset1 does not exist"
 ```
