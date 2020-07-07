@@ -9,29 +9,26 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
-
 
 // read asset information from collection
 func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, assetID string) (*Asset, error) {
 
 	assetJSON, err := ctx.GetStub().GetPrivateData(assetCollection, assetID) //get the asset from chaincode state
 	if err != nil {
-			return nil, fmt.Errorf("failed to read from asset %s", err.Error())
-		}
-		if assetJSON == nil {
-			return nil, fmt.Errorf("%s does not exist", assetID)
-		}
+		return nil, fmt.Errorf("failed to read from asset %s", err.Error())
+	}
+	if assetJSON == nil {
+		return nil, fmt.Errorf("%s does not exist", assetID)
+	}
 
-		asset := new(Asset)
+	asset := new(Asset)
 	err = json.Unmarshal(assetJSON, asset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err.Error())
 	}
-
 
 	return asset, nil
 
@@ -41,14 +38,14 @@ func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, a
 func (s *SmartContract) ReadAssetPrivateDetails(ctx contractapi.TransactionContextInterface, collection string, assetID string) (*AssetPrivateDetails, error) {
 
 	assetDetailsJSON, err := ctx.GetStub().GetPrivateData(collection, assetID) //get the asset from chaincode state
-		if err != nil {
-			return nil, fmt.Errorf("failed to read from asset details %s", err.Error())
-		}
-		if assetDetailsJSON == nil {
-			return nil, fmt.Errorf("%s does not exist", assetID)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from asset details %s", err.Error())
+	}
+	if assetDetailsJSON == nil {
+		return nil, fmt.Errorf("appraisal value for %s does not exist in private data collection", assetID)
+	}
 
-		assetDetails := new(AssetPrivateDetails)
+	assetDetails := new(AssetPrivateDetails)
 	err = json.Unmarshal(assetDetailsJSON, assetDetails)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err.Error())
@@ -61,18 +58,18 @@ func (s *SmartContract) ReadAssetPrivateDetails(ctx contractapi.TransactionConte
 func (s *SmartContract) ReadTransferAgreement(ctx contractapi.TransactionContextInterface, assetID string) (string, error) {
 
 	// create composite key
-	transferAgreeKey, err := ctx.GetStub().CreateCompositeKey("transferAgreement",[]string{assetID})
+	transferAgreeKey, err := ctx.GetStub().CreateCompositeKey(transferAgreementObjectType, []string{assetID})
 	if err != nil {
 		return "", fmt.Errorf("failed to create composite key: %s", err.Error())
 	}
 
 	buyerIdentity, err := ctx.GetStub().GetPrivateData(assetCollection, transferAgreeKey) //get the identity from collection
 	if err != nil {
-			return "", fmt.Errorf("failed to read from asset %s", err.Error())
-		}
-		if buyerIdentity == nil {
-			return "", fmt.Errorf("%s does not exist", assetID)
-		}
+		return "", fmt.Errorf("failed to read from asset %s", err.Error())
+	}
+	if buyerIdentity == nil {
+		return "", fmt.Errorf("Transfer agreement for %s does not exist", assetID)
+	}
 
 	return string(buyerIdentity), nil
 
@@ -88,7 +85,7 @@ func (s *SmartContract) GetAssetByRange(ctx contractapi.TransactionContextInterf
 
 	resultsIterator, err := ctx.GetStub().GetPrivateDataByRange("assetCollection", startKey, endKey)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 	defer resultsIterator.Close()
 
@@ -114,7 +111,6 @@ func (s *SmartContract) GetAssetByRange(ctx contractapi.TransactionContextInterf
 
 }
 
-
 // =======Rich queries =========================================================================
 // Two examples of rich queries are provided below (parameterized query and ad hoc query).
 // Rich queries pass a query string to the state database.
@@ -136,13 +132,11 @@ func (s *SmartContract) GetAssetByRange(ctx contractapi.TransactionContextInterf
 // =========================================================================================
 func (s *SmartContract) QueryAssetByOwner(ctx contractapi.TransactionContextInterface, owner string) ([]Asset, error) {
 
-	ownerString  := strings.ToLower(owner)
-
-	queryString := fmt.Sprintf("{\"selector\":{\"docType\":\"asset\",\"owner\":\"%s\"}}", ownerString)
+	queryString := fmt.Sprintf("{\"selector\":{\"type\":\"asset\",\"owner\":\"%s\"}}", owner)
 
 	queryResults, err := s.getQueryResultForQueryString(ctx, queryString)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 	return queryResults, nil
 }
@@ -158,7 +152,7 @@ func (s *SmartContract) QueryAssets(ctx contractapi.TransactionContextInterface,
 
 	queryResults, err := s.getQueryResultForQueryString(ctx, queryString)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 	return queryResults, nil
 }

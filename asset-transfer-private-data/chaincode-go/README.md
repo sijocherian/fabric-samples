@@ -1,5 +1,6 @@
 # Private data asset transfer scenario
 
+<<<<<<< HEAD
 The private data asset transfer smart contract uses a simple asset transfer to demonstrate the use of private data collections. All the data that is created by the smart contract is stored in the private data collections specified in the `collections_config.json` file:
 
 - The `assetCollection` is a collection that is deployed on the peers of Org1 and Org2. This collection is used to store the main asset details, such as the size, color, and owner. The `"memberOnlyRead"` and `"memberOnlyWrite"` parameters are used to specify that only Org1 and Org2 can read and write to this collection.
@@ -15,6 +16,23 @@ These two collections are used to transfer the asset between Org1 and Org2. In t
   If both conditions are met, the transfer function will get the client ID of the buyer from the transfer agreement and make the buyer the new owner of the asset. The transfer function will also delete the asset appraisal value from the collection of the former owner, as well as remove the transfer agreement from the  `assetCollection`.
 
 The private data asset transfer is a simplified transfer scenario that is meant to demonstrate the use private data collections. For an example of a more realistic transfer scenario, see the [secure asset transfer smart contract](../../asset-transfer-secured-agreement/chaincode-go).
+=======
+The private data asset transfer smart contract uses a simple asset transfer to demonstrate the use of private data collections. All the data that is created by the smart contract is stored in the private data that are collections specified in the `collections_config.json` file:
+
+- The `assetCollection` is deployed on the peers of Org1 and Org2. This collection is used to store the main asset details, such as the size, color, and owner. The `"memberOnlyRead"` and `"memberOnlyWrite"` parameters are used to specify that only Org1 and Org2 can read and write to this collection.
+- The `Org1MSPPrivateCollection` is deployed only on the Org1 peer. Similarly, the `Org2MSPPrivateCollection` is only deployed on the Org2 peer. These organization specific collections are used to store the appraisal value of the asset. This allows the owner of the asset to keep the value of the asset private from other organizations on the channel. The `"endorsementPolicy"` parameter is used to create a collection specific endorsement policy. Each update to `Org1MSPPrivateCollection` or `Org2MSPPrivateCollection` needs to be endorsed by the organization that stores the collection on their peers.
+
+These three collections are used to transfer the asset between Org1 and Org2. In the tutorial, you will use the private data smart contract to complete the following transfer scenario:
+
+- A member of Org1 uses the `CreateAsset` function to create a new asset. The `CreateAsset` function reads the certificate information of the client identity that submitted the transaction using the `GetClientIdentity.GetID()` API and creates a new asset with the client identity as the asset owner. The main details of the asset, including the owner, are stored in the `assetCollection` collection. The appraised value of the asset is stored in the organization specific collection of the asset owner. Because the asset is initially created by a member of Org1, the appraisal value is stored in the `Org1MSPPrivateCollection`.
+- A member of Org2 creates an agreement to trade using the `AgreeToTransfer` function. The potential buyer uses this function to agree to an asset appraisal value. The value is stored in `Org1MSPPrivateCollection`, and can only read by a member of Org2. The `AgreeToTransfer` function also uses the `GetClientIdentity().GetID()` API to read the client identity that is agreeing to the Transfer. The **TransferAgreement** is stored in the `assetCollection` as a key with the name "transferAgreement{assetID}"
+- After the member of Org2 has to the transfer, the asset owner can transfer the asset to the buyer using the `TransferAsset` function. The smart contract completes a couple of checks before the asset is transferred:
+    - The transfer request is submitted by the owner of the asset.
+    - The smart contract uses the `GetPrivateDataHash()` function to check that the hash of the asset appraisal value in `Org1MSPPrivateCollection` matches the hash of the appraisal value in the `Org1MSPPrivateCollection`. If the hashes are the same, it confirms that the owner and the interested buyer have agreed to the same asset value.
+  If both conditions are met, the transfer function will get the client ID of the buyer from the transfer agreement and make the buyer the new owner of the asset. The transfer function will also delete the asset appraisal value from the collection of the former owner, as well as remove the transfer agreement from the `assetCollection`.
+
+The private data asset transfer enabled by this smart contract is meant to demonstrate the use private data collections. For an example of a more realistic transfer scenario, see the [secure asset transfer smart contract](../../asset-transfer-secured-agreement/chaincode-go).
+>>>>>>> nikhil550/privateAsset
 
 ## Download the smart contract dependencies
 
@@ -25,17 +43,30 @@ GO111MODULE=on go mod vendor
 
 ## Deploy the smart contract to the test network
 
+<<<<<<< HEAD
 You can use the Fabric test network to run the private data transfer scenario. Open a command terminal and navigate to test network directory in your local clone of the `fabric-samples`. We will operate from the `test-network` directory for the remainder of the tutorial.
+=======
+You can run the private data transfer scenario using the Fabric test network. Open a command terminal and navigate to test network directory in your local clone of the `fabric-samples`. We will operate from the `test-network` directory for the remainder of the tutorial.
+>>>>>>> nikhil550/privateAsset
 ```
 cd fabric-samples/test-network
 ```
 
+<<<<<<< HEAD
 The test network is deployed with two peer organizations. We will deploy the test network using certificate authorities so that we can use the CA for each orgnization to register and enroll new users for the tutorial. The script will also a single channel named `mychannel` with Org1 and Org2 as channel members.
+=======
+Run the following command to deploy the test network:
+>>>>>>> nikhil550/privateAsset
 
 ```
 ./network.sh up createChannel -ca
 ```
 
+<<<<<<< HEAD
+=======
+The test network is deployed with two peer organizations. The `createChannel` flag deploys the network with a single channel named `mychannel` with Org1 and Org2 as channel members. The `-ca` is used to deploy the network using certificate authorities. This allows us to use each organization's CA to register and enroll new users for this tutorial.
+
+>>>>>>> nikhil550/privateAsset
 ## Deploy the smart contract to the channel
 
 You can use the following steps to deploy the smart contract to the channel.
@@ -69,7 +100,11 @@ peer lifecycle chaincode queryinstalled
 ```
 Save the package ID as an environment variable. The package ID will not be the same for all users, so need to use the result that was returned by the previous command:
 ```
+<<<<<<< HEAD
 export PACKAGE_ID=private_transfer_1:74aaf8ab367c8a07a5be8990696d22e949f5b7a42b2d054006dc57e028c27f60
+=======
+export PACKAGE_ID=private_transfer_1:d195682c777705f76a4cdce903a1365dc93a9b5b6fb363eeac292e616cfb64d2
+>>>>>>> nikhil550/privateAsset
 ```
 You can now approve the chaincode as Org1. This command includes a path to the collection definition file.
 ```
@@ -110,7 +145,11 @@ We are now ready use the private asset transfer smart contract.
 
 ## Register identities
 
+<<<<<<< HEAD
 The private data transfer smart contract supports ownership by individual identities that belong to the network, instead of an entire organization. In our scenario, the owner of the asset will be a member of Org1, while the buyer will belong to Org2. To highlight the connection between the `GetID()` API and the information within a users certificate, we will use the Certificate Authorities of both organizations to register new two new identities.
+=======
+The private data transfer smart contract supports ownership by individual identities that belong to the network. In our scenario, the owner of the asset will be a member of Org1, while the buyer will belong to Org2. To highlight the connection between the `GetClientIdentity().GetID()` API and the information within a users certificate, we will register new two new identities using the Org1 and Org2 CA, and then use the CA's to generate each identities certificate and private key.
+>>>>>>> nikhil550/privateAsset
 
 First, we will use the Org1 CA to create the identity asset owner. Set the Fabric CA client home to the MSP of the Org1 CA admin (this identity was generated by the test network script):
 ```
@@ -154,7 +193,11 @@ cp ${PWD}/organizations/peerOrganizations/org2.example.com/msp/config.yaml ${PWD
 
 ## Create an asset
 
+<<<<<<< HEAD
 Now that we have created the identity of the asset owner, we can invoke the smart contract to create a new asset. Use the following environment variables to operate the `peer` CLI as the owner identity from Org1.
+=======
+Now that we have created the identity of the asset owner, we can invoke the private data smart contract to create a new asset. Use the following environment variables to operate the `peer` CLI as the owner identity from Org1.
+>>>>>>> nikhil550/privateAsset
 
 ```
 export CORE_PEER_LOCALMSPID="Org1MSP"
@@ -173,9 +216,15 @@ We can the invoke the smart contract to create the new asset:
 peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
 ```
 
+<<<<<<< HEAD
 The command above uses the transient data flag, `--transient`, to provide the marble details to the transaction. Transient data is is only stored in a transient data store in the peers targeted by the transaction. Transient data is not part of the transaction read write set, and as result is not stored on the channel ledger.
 
 Note that command above only targets the Org1 peer. The `CreateAsset` transactions writes to two collections, `assetCollection` and `Org1MSPPrivateCollection`. The `Org1MSPPrivateCollection` requires and endorsement from the Org1 peer in order to write to the collection, while the `assetCollection` inherits the endorsement policy of the smart contract, `"OR('Org1MSP.peer','Org2MSP.peer')"`. An endorsement from the Org1 peer can meet both endorsement policies and is able to create an asset without an endorsement from Org2.
+=======
+The command above uses the transient data flag, `--transient`, to provide the asset details to the smart contract. Transient data is not part of the transaction read/write set, and as result is not stored on the channel ledger.
+
+Note that command above only targets the Org1 peer. The `CreateAsset` transactions writes to two collections, `assetCollection` and `Org1MSPPrivateCollection`. The `Org1MSPPrivateCollection` requires and endorsement from the Org1 peer in order to write to the collection, while the `assetCollection` inherits the endorsement policy of the chaincode, `"OR('Org1MSP.peer','Org2MSP.peer')"`. An endorsement from the Org1 peer can meet both endorsement policies and is able to create an asset without an endorsement from Org2.
+>>>>>>> nikhil550/privateAsset
 
 We can read the main details of the asset that was created by using the `ReadAsset` function to query the `assetCollection` collection:
 ```
@@ -187,7 +236,11 @@ When successful, the command will return the following result:
 "{\"type\":\"asset\",\"asset_id\":\"asset1\",\"color\":\"green\",\"size\":20,\"owner\":\"eDUwOTo6Q049b3duZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMS5leGFtcGxlLmNvbSxPPW9yZzEuZXhhbXBsZS5jb20sTD1EdXJoYW0sU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUw==\"}"
 ```
 
+<<<<<<< HEAD
 The `"owner"` of the asset is the identity that invoked the chaincode to create the asset. The `GetID()` API reads the common name and issuer of the identity certificate. You can see that information by base64 decoding the owner string:
+=======
+The `"owner"` of the asset is the identity that created the asset by invoking the smart contract. The `GetClientIdentity().GetID()` API reads the common name and issuer of the identity certificate. You can see that information by decoding the owner string out of base64 format:
+>>>>>>> nikhil550/privateAsset
 ```
 echo eDUwOTo6Q049b3duZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMS5leGFtcGxlLmNvbSxPPW9yZzEuZXhhbXBsZS5jb20sTD1EdXJoYW0sU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUw | base64 --decode
 ```
@@ -197,7 +250,11 @@ The result will show the common name and issuer of the owner certificate:
 x509::CN=owner,OU=client,O=Hyperledger,ST=North Carolina,C=US::CN=ca.org1.example.com,O=org1.example.com,L=Durham,ST=North Carolina,C=Umacbook-air:test-network
 ```
 
+<<<<<<< HEAD
 A member of Org1 can also read the private marble appraisal value that is stored in the `Org1MSPPrivateCollection` collection on the Org1 peer:
+=======
+A member of Org1 can also read the private asset appraisal value that is stored in the `Org1MSPPrivateCollection` on the Org1 peer:
+>>>>>>> nikhil550/privateAsset
 ```
 peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
 ```
@@ -208,7 +265,11 @@ The query will return the value of the asset:
 
 ### Buyer from Org2 agrees to buy the asset
 
+<<<<<<< HEAD
 The buyer identity from Org2 is interested in buying the asset. Set the following environment variables to operate as the buyer of the asset:
+=======
+The buyer identity from Org2 is interested in buying the asset. Set the following environment variables to operate as the buyer:
+>>>>>>> nikhil550/privateAsset
 
 ```
 export CORE_PEER_LOCALMSPID="Org2MSP"
@@ -223,7 +284,11 @@ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.exam
 ```
 The buyer only finds that asset1 does exist in his collection:
 ```
+<<<<<<< HEAD
 Error: endorsement failure during invoke. response: status:500 message:"asset1 does not exist"
+=======
+Error: endorsement failure during invoke. response: status:500 message:"appraisal value for asset1 does not exist in private data collection"
+>>>>>>> nikhil550/privateAsset
 ```
 
 Nor is a member of Org2 able to read the Org1 private data collection:
@@ -260,16 +325,27 @@ export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.e
 export CORE_PEER_ADDRESS=localhost:7051
 ```
 
+<<<<<<< HEAD
 
 To transfer the asset, the owner needs to pass the MSP ID of new asset owner. The transfer function will read the client ID of the new owner from the transfer agreement.
+=======
+To transfer the asset, the owner needs to pass the MSP ID of new asset owner. The transfer function will read the client ID of the interested buyer from the transfer agreement.
+>>>>>>> nikhil550/privateAsset
 ```
 export ASSET_OWNER=$(echo -n "{\"asset_id\":\"asset1\",\"buyer_msp\":\"Org2MSP\"}" | base64 | tr -d \\n)
 ```
 
+<<<<<<< HEAD
 The owner of the asset needs to initiate the transfer. Note that the command below uses the `--peerAddresses` flag to target the peers of both Org1 and Org2. Both organizations need to endorse the transfer.
 
 ```
 peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"TransferAsset","Args":[]}' --transient "{\"asset_owner\":\"$ASSET_OWNER\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+=======
+The owner of the asset needs to initiate the transfer.
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"TransferAsset","Args":[]}' --transient "{\"asset_owner\":\"$ASSET_OWNER\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+>>>>>>> nikhil550/privateAsset
 ```
 You can query `asset1` to see the results of the transfer.
 ```
@@ -282,13 +358,25 @@ The results will show that the buyer identity now owns the asset:
 {"type":"asset","asset_id":"asset1","color":"green","size":20,"owner":"eDUwOTo6Q049YnV5ZXIsT1U9Y2xpZW50LE89SHlwZXJsZWRnZXIsU1Q9Tm9ydGggQ2Fyb2xpbmEsQz1VUzo6Q049Y2Eub3JnMi5leGFtcGxlLmNvbSxPPW9yZzIuZXhhbXBsZS5jb20sTD1IdXJzbGV5LFNUPUhhbXBzaGlyZSxDPVVL"}
 ```
 
+<<<<<<< HEAD
+=======
+You can base64 decode the `"owner"` to see that it is the buyer identity:
+```
+x509::CN=buyer,OU=client,O=Hyperledger,ST=North Carolina,C=US::CN=ca.org2.example.com,O=org2.example.com,L=Hursley,ST=Hampshire,C=UKmacbook-air
+```
+
+>>>>>>> nikhil550/privateAsset
 You can also confirm that transfer removed the private details from the Org1 collection:
 ```
 peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private_transfer -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
 ```
 Your query will return the following result:
 ```
+<<<<<<< HEAD
 Error: endorsement failure during query. response: status:500 message:"asset1 does not exist"
+=======
+Error: endorsement failure during query. response: status:500 message:"appraisal value for asset1 does not exist in private data collection"
+>>>>>>> nikhil550/privateAsset
 ```
 
 ## Clean up

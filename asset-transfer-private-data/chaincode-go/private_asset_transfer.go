@@ -11,17 +11,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
 // Asset describes main asset details that are visible to all organizations
 type Asset struct {
-	Type 		 			 string `json:"type"`  //Type is used to distinguish the various types of objects in state database
-	ID             string `json:"asset_id"`
-	Color          string `json:"color"`
-	Size           int    `json:"size"`
-	Owner          string `json:"owner"`
+	Type  string `json:"type"` //Type is used to distinguish the various types of objects in state database
+	ID    string `json:"asset_id"`
+	Color string `json:"color"`
+	Size  int    `json:"size"`
+	Owner string `json:"owner"`
 }
 
 // AssetPrivateDetails describes details that are private to owners
@@ -31,6 +31,8 @@ type AssetPrivateDetails struct {
 }
 
 const assetCollection = "assetCollection"
+
+const transferAgreementObjectType = "transferAgreement"
 
 type SmartContract struct {
 	contractapi.Contract
@@ -53,11 +55,11 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface)
 	}
 
 	type assetTransientInput struct {
-		Type 		 				string `json:"type"`  //Type is used to distinguish the various types of objects in state database
-		ID             	string `json:"asset_id"`
-		Color          	string `json:"color"`
-		Size           	int    `json:"size"`
-		AppraisedValue 	int    `json:"appraised_value"`
+		Type           string `json:"type"` //Type is used to distinguish the various types of objects in state database
+		ID             string `json:"asset_id"`
+		Color          string `json:"color"`
+		Size           int    `json:"size"`
+		AppraisedValue int    `json:"appraised_value"`
 	}
 
 	var assetInput assetTransientInput
@@ -99,11 +101,11 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface)
 
 	// Make submitting client the owner
 	asset := &Asset{
-		Type: 			assetInput.Type,
-		ID:       	assetInput.ID,
-		Color:      assetInput.Color,
-		Size:       assetInput.Size,
-		Owner:      clientID,
+		Type:  assetInput.Type,
+		ID:    assetInput.ID,
+		Color: assetInput.Color,
+		Size:  assetInput.Size,
+		Owner: clientID,
 	}
 	assetJSONasBytes, err := json.Marshal(asset)
 	if err != nil {
@@ -118,8 +120,8 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface)
 
 	// Save asset details to collection visible to owning organization
 	assetPrivateDetails := &AssetPrivateDetails{
-		ID:       			 	assetInput.ID,
-		AppraisedValue:   assetInput.AppraisedValue,
+		ID:             assetInput.ID,
+		AppraisedValue: assetInput.AppraisedValue,
 	}
 
 	assetPrivateDetailsAsBytes, err := json.Marshal(assetPrivateDetails) // marshal asset details to JSON
@@ -128,7 +130,7 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface)
 	}
 
 	// get collection name for this organization
-	orgCollection, err := getCollectionName(ctx)
+	orgCollection, err := getCollectionName(ctx, true)
 
 	// put asset appraised value into owners org specific private data collection
 	err = ctx.GetStub().PutPrivateData(orgCollection, assetInput.ID, assetPrivateDetailsAsBytes)
@@ -178,7 +180,7 @@ func (s *SmartContract) AgreeToTransfer(ctx contractapi.TransactionContextInterf
 	}
 
 	// get collection name for this organization
-	orgCollection, err := getCollectionName(ctx)
+	orgCollection, err := getCollectionName(ctx, true)
 
 	// put agreed value in the org specifc private data collection
 	err = ctx.GetStub().PutPrivateData(orgCollection, valueJSON.ID, valueJSONasBytles)
@@ -187,7 +189,7 @@ func (s *SmartContract) AgreeToTransfer(ctx contractapi.TransactionContextInterf
 	}
 
 	// create agreeement where you indicate the identity has agreed to purchase
-	transferAgreeKey, err := ctx.GetStub().CreateCompositeKey("transferAgreement",[]string{valueJSON.ID})
+	transferAgreeKey, err := ctx.GetStub().CreateCompositeKey(transferAgreementObjectType, []string{valueJSON.ID})
 	if err != nil {
 		return fmt.Errorf("failed to create composite key: %s", err.Error())
 	}
@@ -200,8 +202,7 @@ func (s *SmartContract) AgreeToTransfer(ctx contractapi.TransactionContextInterf
 	return nil
 }
 
-
-// transfer a asset by setting a new owner ID on the asset
+// TransferAsset transfers the asset to the new owner by setting a new owner ID
 func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterface) error {
 
 	transMap, err := ctx.GetStub().GetTransient()
@@ -216,8 +217,8 @@ func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterfac
 	}
 
 	type assetTransferTransientInput struct {
-		ID  			string 	`json:"asset_id"`
-		BuyerMSP 	string 	`json:"buyer_msp"`
+		ID       string `json:"asset_id"`
+		BuyerMSP string `json:"buyer_msp"`
 	}
 
 	var assetTransferInput assetTransferTransientInput
@@ -235,15 +236,15 @@ func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterfac
 
 	// Read asset from the private data collection
 	asset, err := s.ReadAsset(ctx, assetTransferInput.ID)
-		if err != nil {
-			return fmt.Errorf("failed to get asset: %s", err.Error())
-		}
+	if err != nil {
+		return fmt.Errorf("failed to get asset: %s", err.Error())
+	}
 
 	// verify transfer details and transfer owner
 	err = s.verifyAgreement(ctx, assetTransferInput.ID, asset.Owner, assetTransferInput.BuyerMSP)
-		if err != nil {
-			return fmt.Errorf("failed transfer verification: %s", err.Error())
-		}
+	if err != nil {
+		return fmt.Errorf("failed transfer verification: %s", err.Error())
+	}
 
 	buyerID, err := s.ReadTransferAgreement(ctx, assetTransferInput.ID)
 
@@ -252,29 +253,29 @@ func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterfac
 
 	assetJSONasBytes, _ := json.Marshal(asset)
 	err = ctx.GetStub().PutPrivateData(assetCollection, assetTransferInput.ID, assetJSONasBytes) //rewrite the asset
-		if err != nil {
-				return err
-		}
+	if err != nil {
+		return err
+	}
 
 	// get collection name for this organization
-	ownersCollection, err := getCollectionName(ctx)
+	ownersCollection, err := getCollectionName(ctx, false)
 
 	// delete the marble appraised value from this organiztion's private data collection
 	err = ctx.GetStub().DelPrivateData(ownersCollection, assetTransferInput.ID)
-		if err != nil {
-				return err
-		}
+	if err != nil {
+		return err
+	}
 
 	// delete the transfer agreement from the asset collection
-	transferAgreeKey, err := ctx.GetStub().CreateCompositeKey("transferAgreement",[]string{assetTransferInput.ID})
+	transferAgreeKey, err := ctx.GetStub().CreateCompositeKey(transferAgreementObjectType, []string{assetTransferInput.ID})
 	if err != nil {
 		return fmt.Errorf("failed to create composite key: %s", err.Error())
 	}
 
-	err = ctx.GetStub().DelPrivateData(assetCollection,transferAgreeKey)
-		if err != nil {
-				return err
-		}
+	err = ctx.GetStub().DelPrivateData(assetCollection, transferAgreeKey)
+	if err != nil {
+		return err
+	}
 
 	return nil
 
@@ -294,34 +295,34 @@ func (s *SmartContract) verifyAgreement(ctx contractapi.TransactionContextInterf
 	}
 
 	if clientID != owner {
-			return fmt.Errorf("error: submitting client identity does not own asset")
-		}
+		return fmt.Errorf("error: submitting client identity does not own asset")
+	}
 
 	// Check 2: verify that the buyer has agreed to the appraised value
 
 	// get collection names
 
-	collectionOwner, err := getCollectionName(ctx) // get buyers collection
+	collectionOwner, err := getCollectionName(ctx, false) // get buyers collection
 
 	collectionBuyer := buyerMSP + "PrivateCollection" // get buyers collection
 
 	// get hash of owners agreed to value
 	ownerAppraisedValueHash, err := ctx.GetStub().GetPrivateDataHash(collectionOwner, assetID)
-		if err != nil {
-			return fmt.Errorf("failed to hash of appraised value from owners collection %s: %s", collectionOwner ,err.Error())
-		}
-		if ownerAppraisedValueHash == nil {
-			return fmt.Errorf("hash of appraised value for %s does not exist in collection %s", assetID, collectionOwner)
-		}
+	if err != nil {
+		return fmt.Errorf("failed to get hash of appraised value from owners collection %s: %s", collectionOwner, err.Error())
+	}
+	if ownerAppraisedValueHash == nil {
+		return fmt.Errorf("hash of appraised value for %s does not exist in collection %s", assetID, collectionOwner)
+	}
 
-		// get hash of buyers agreed to value
+	// get hash of buyers agreed to value
 	buyerAppraisedValueHash, err := ctx.GetStub().GetPrivateDataHash(collectionBuyer, assetID)
-		if err != nil {
-			return fmt.Errorf("failed to hash of appraised value from buyer collection %s: %s", collectionBuyer ,err.Error())
-		}
-		if buyerAppraisedValueHash == nil {
-			return fmt.Errorf("hash of appraised value for %s does not exist in collection %s", assetID, collectionBuyer)
-		}
+	if err != nil {
+		return fmt.Errorf("failed to get hash of appraised value from buyer collection %s: %s", collectionBuyer, err.Error())
+	}
+	if buyerAppraisedValueHash == nil {
+		return fmt.Errorf("hash of appraised value for %s does not exist in collection %s", assetID, collectionBuyer)
+	}
 
 	// verify that the two hashes match
 	if !bytes.Equal(ownerAppraisedValueHash, buyerAppraisedValueHash) {
@@ -335,37 +336,37 @@ func (s *SmartContract) verifyAgreement(ctx contractapi.TransactionContextInterf
 func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface) error {
 
 	transMap, err := ctx.GetStub().GetTransient()
-		if err != nil {
-			return fmt.Errorf("Error getting transient: " + err.Error())
-		}
+	if err != nil {
+		return fmt.Errorf("Error getting transient: " + err.Error())
+	}
 
 	// Asset properties are private, therefore they get passed in transient field
 	transientDeleteJSON, ok := transMap["asset_delete"]
-		if !ok {
-			return fmt.Errorf("asset to delete not found in the transient map")
-		}
+	if !ok {
+		return fmt.Errorf("asset to delete not found in the transient map")
+	}
 
 	type assetDelete struct {
-			ID string `json:"asset_id"`
-		}
+		ID string `json:"asset_id"`
+	}
 
 	var assetDeleteInput assetDelete
 	err = json.Unmarshal(transientDeleteJSON, &assetDeleteInput)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal JSON: %s", err.Error())
-		}
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal JSON: %s", err.Error())
+	}
 
 	if len(assetDeleteInput.ID) == 0 {
 		return fmt.Errorf("ID field must be a non-empty string")
 	}
 
 	valAsbytes, err := ctx.GetStub().GetPrivateData(assetCollection, assetDeleteInput.ID) //get the asset from chaincode state
-		if err != nil {
-			return fmt.Errorf("failed to read asset: %s", err.Error())
-		}
-		if valAsbytes == nil {
-			return fmt.Errorf("asset private details does not exist: %s",  assetDeleteInput.ID)
-		}
+	if err != nil {
+		return fmt.Errorf("failed to read asset: %s", err.Error())
+	}
+	if valAsbytes == nil {
+		return fmt.Errorf("asset private details does not exist: %s", assetDeleteInput.ID)
+	}
 
 	var assetToDelete Asset
 	err = json.Unmarshal([]byte(valAsbytes), &assetToDelete)
@@ -381,41 +382,41 @@ func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface)
 
 	// Finally, delete private details of asset
 
-	ownerCollection, err := getCollectionName(ctx) // get owners collection
+	ownerCollection, err := getCollectionName(ctx, true) // get owners collection
 
 	err = ctx.GetStub().DelPrivateData(ownerCollection, assetDeleteInput.ID) // delete the asset
 	if err != nil {
-			return err
+		return err
 	}
 
 	return nil
 
 }
 
-// DeleteProposal can be used by a user of a rejected transfer properties to
-// remove the propsal from the asset collection and the org specific collection
-func (s *SmartContract) DeleteProposal(ctx contractapi.TransactionContextInterface) error {
+// DeleteTranferAgreement can be used by the buyer to withdraw a proposal from
+// the asset collection and from his own collection.
+func (s *SmartContract) DeleteTranferAgreement(ctx contractapi.TransactionContextInterface) error {
 
 	transMap, err := ctx.GetStub().GetTransient()
-		if err != nil {
-			return fmt.Errorf("Error getting transient: " + err.Error())
-		}
+	if err != nil {
+		return fmt.Errorf("Error getting transient: " + err.Error())
+	}
 
 	// Asset properties are private, therefore they get passed in transient field
 	transientDeleteJSON, ok := transMap["agree_delete"]
-		if !ok {
-			return fmt.Errorf("asset to delete not found in the transient map")
-		}
+	if !ok {
+		return fmt.Errorf("asset to delete not found in the transient map")
+	}
 
 	type assetDelete struct {
-			ID string `json:"asset_id"`
-		}
+		ID string `json:"asset_id"`
+	}
 
 	var assetDeleteInput assetDelete
 	err = json.Unmarshal(transientDeleteJSON, &assetDeleteInput)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal JSON: %s", err.Error())
-		}
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal JSON: %s", err.Error())
+	}
 
 	if len(assetDeleteInput.ID) == 0 {
 		return fmt.Errorf("ID field must be a non-empty string")
@@ -423,42 +424,33 @@ func (s *SmartContract) DeleteProposal(ctx contractapi.TransactionContextInterfa
 
 	// delete private details of agreement
 
-	orgCollection, err := getCollectionName(ctx) // get owners collection
+	orgCollection, err := getCollectionName(ctx, true) // get proposers collection
 
 	err = ctx.GetStub().DelPrivateData(orgCollection, assetDeleteInput.ID) // delete the asset
 	if err != nil {
-			return err
+		return err
 	}
 
 	// delete transfer agreement record
 
-	tranferAgreeKey, err := ctx.GetStub().CreateCompositeKey("transferAgreement",[]string{assetDeleteInput.ID}) // create composite key
-		if err != nil {
-			return fmt.Errorf("failed to create composite key: %s", err.Error())
-		}
+	tranferAgreeKey, err := ctx.GetStub().CreateCompositeKey(transferAgreementObjectType, []string{assetDeleteInput.ID}) // create composite key
+	if err != nil {
+		return fmt.Errorf("failed to create composite key: %s", err.Error())
+	}
 
 	err = ctx.GetStub().DelState(tranferAgreeKey) // remove agreement from state
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 
 	return nil
 
 }
 
-// Return the ID of submitting client identity. This will be used to identify
-// and verify the owner on chain
-func (s *SmartContract) ReturnID(ctx contractapi.TransactionContextInterface) (string, error) {
-
-	clientID, err := ctx.GetClientIdentity().GetID()
-	if err != nil {
-		return "", fmt.Errorf("failed to get verified OrgID: %s", err.Error())
-	}
-	return clientID, nil
-}
-
-// getCollectionName is an internal helper function to get collection of submitting client identity
-func getCollectionName(ctx contractapi.TransactionContextInterface) (string, error) {
+// getCollectionName is an internal helper function to get collection of submitting client identity.
+// The collection name can optionally be verified against the peer org ID, to ensure that a
+// client from another org doesn't attempt to read or write private data from this peer.
+func getCollectionName(ctx contractapi.TransactionContextInterface, verifyOrg bool) (string, error) {
 
 	// Get the MSP ID of submitting client identity
 	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
@@ -467,19 +459,31 @@ func getCollectionName(ctx contractapi.TransactionContextInterface) (string, err
 	}
 
 	// verify that the client is submitting request to peer in their organization
-	peerOrgID, err := shim.GetMSPID()
-	if err != nil {
-		return "", fmt.Errorf("failed getting peer's orgID: %s", err.Error())
-	}
-
-	if clientMSPID != peerOrgID {
-		return "", fmt.Errorf("client from org %s is not authorized to read or write private data on org %s peer", clientMSPID, peerOrgID)
+	if verifyOrg {
+		err = verifyClientOrgMatchesPeerOrg(clientMSPID)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// create the collection name
 	orgCollection := clientMSPID + "PrivateCollection"
 
 	return orgCollection, nil
+}
+
+// verifyClientOrgMatchesPeerOrg is an internal function used verify client org id and matches peer org id.
+func verifyClientOrgMatchesPeerOrg(clientMSPID string) error {
+	peerMSPID, err := shim.GetMSPID()
+	if err != nil {
+		return fmt.Errorf("failed getting peer's orgID: %s", err.Error())
+	}
+
+	if clientMSPID != peerMSPID {
+		return fmt.Errorf("client from org %s is not authorized to read or write private data from an org %s peer", clientMSPID, peerMSPID)
+	}
+
+	return nil
 }
 
 func main() {
